@@ -1,56 +1,45 @@
 // world.js
 
 export class World {
-  constructor(width = 64, height = 32, depth = 64) {
-    this.width = width;
-    this.height = height;
-    this.depth = depth;
+  constructor(blockRegistry) {
+    this.blockRegistry = blockRegistry;
 
-    // 3D array of block IDs (strings like "air", "grass_block", etc)
-    // Stored as a flat Uint16Array or Array? For now, simple Array of strings
-    this.blocks = new Array(width * height * depth).fill('air');
-
-    this.initTerrain();
-  }
-
-  index(x, y, z) {
-    return y * this.width * this.depth + z * this.width + x;
-  }
-
-  inBounds(x, y, z) {
-    return (
-      x >= 0 && x < this.width &&
-      y >= 0 && y < this.height &&
-      z >= 0 && z < this.depth
-    );
+    // 3D map: Map<x, Map<y, Map<z, blockId>>>
+    this.blocks = new Map();
   }
 
   getBlock(x, y, z) {
-    if (!this.inBounds(x, y, z)) return 'air';
-    return this.blocks[this.index(x, y, z)];
+    return this.blocks.get(x)?.get(y)?.get(z) || "minecraft:air";
   }
 
   setBlock(x, y, z, blockId) {
-    if (!this.inBounds(x, y, z)) return;
-    this.blocks[this.index(x, y, z)] = blockId;
+    if (!this.blocks.has(x)) this.blocks.set(x, new Map());
+    if (!this.blocks.get(x).has(y)) this.blocks.get(x).set(y, new Map());
+    this.blocks.get(x).get(y).set(z, blockId);
   }
 
-  initTerrain() {
-    // Simple flat terrain: grass on y=10, dirt below, air above
-    const groundLevel = 10;
+  isSolid(x, y, z) {
+    const id = this.getBlock(x, y, z);
+    const def = this.blockRegistry[id];
+    return def && def.solid;
+  }
 
-    for (let x = 0; x < this.width; x++) {
-      for (let z = 0; z < this.depth; z++) {
-        for (let y = 0; y < this.height; y++) {
-          if (y < groundLevel - 3) {
-            this.setBlock(x, y, z, 'stone');
-          } else if (y < groundLevel - 1) {
-            this.setBlock(x, y, z, 'dirt');
-          } else if (y === groundLevel - 1) {
-            this.setBlock(x, y, z, 'grass_block');
-          } else {
-            this.setBlock(x, y, z, 'air');
-          }
+  generateFlatChunk(width = 16, height = 8, depth = 16) {
+    for (let x = 0; x < width; x++) {
+      for (let z = 0; z < depth; z++) {
+        this.setBlock(x, 0, z, "minecraft:grass_block");
+        for (let y = -1; y >= -3; y--) {
+          this.setBlock(x, y, z, "minecraft:dirt");
+        }
+      }
+    }
+  }
+
+  forEachBlock(callback) {
+    for (const [x, yzMap] of this.blocks) {
+      for (const [y, zMap] of yzMap) {
+        for (const [z, blockId] of zMap) {
+          callback(parseInt(x), parseInt(y), parseInt(z), blockId);
         }
       }
     }
