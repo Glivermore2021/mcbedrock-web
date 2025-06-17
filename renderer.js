@@ -1,131 +1,44 @@
 // renderer.js
+
 export class Renderer {
-  constructor(canvas) {
+  constructor(canvas, world, player, blockRegistry) {
     this.canvas = canvas;
-    this.gl = canvas.getContext('webgl2');
-    if (!this.gl) throw new Error('WebGL2 not supported');
+    this.ctx = canvas.getContext('2d');
+    this.world = world;
+    this.player = player;
+    this.blockRegistry = blockRegistry;
 
-    this.textures = new Map(); // blockName → WebGLTexture
-    this.animationFrameId = null;
-
-    this.initGL();
+    this.blockSize = 20; // Size of blocks on screen
+    this.viewDistance = 16; // Blocks visible around player
   }
 
-  initGL() {
-    const gl = this.gl;
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    // Setup basic GL state here if needed
-  }
+  render() {
+    const { ctx, canvas } = this;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  start() {
-    const loop = (time) => {
-      this.renderFrame(time);
-      this.animationFrameId = requestAnimationFrame(loop);
-    };
-    this.animationFrameId = requestAnimationFrame(loop);
-  }
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
 
-  stop() {
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-  }
+    const px = Math.floor(this.player.position.x);
+    const py = Math.floor(this.player.position.y);
+    const pz = Math.floor(this.player.position.z);
 
-  resize() {
-    const gl = this.gl;
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-  }
+    this.world.forEachBlock((x, y, z, blockId) => {
+      // Only draw blocks near player (2D top-down style for now)
+      if (Math.abs(x - px) > this.viewDistance || Math.abs(z - pz) > this.viewDistance) return;
 
-  renderFrame(time) {
-    const gl = this.gl;
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      const def = this.blockRegistry[blockId];
+      if (!def || !def.color) return;
 
-    // TODO: Add voxel rendering here
+      const screenX = centerX + (x - px) * this.blockSize;
+      const screenY = centerY + (z - pz) * this.blockSize;
 
-    // For now, just clear to black
-  }
+      ctx.fillStyle = def.color;
+      ctx.fillRect(screenX, screenY, this.blockSize, this.blockSize);
+    });
 
-  async loadPlaceholderTextures() {
-    const placeholderColors = {
-      stone: '#888888',
-      dirt: '#8B4513',
-      grass_block: '#228B22',
-      planks: '#DEB887',
-      glass: '#AAAAAA80',
-      sand: '#F4E99D',
-      water: '#4060F080',
-    };
-
-    for (const [block, color] of Object.entries(placeholderColors)) {
-      const tex = this.createTextureFromColor(color);
-      this.textures.set(block, tex);
-    }
-  }
-
-  createTextureFromColor(color) {
-    const gl = this.gl;
-    const size = 16;
-
-    // Create a 16x16 canvas filled with the color
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, size, size);
-
-    // Create WebGL texture
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      canvas
-    );
-
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    return texture;
-  }
-
-  // Replace textures map with new ones (loaded from resource pack)
-  updateTextures(textureMap) {
-    // textureMap: Map<string, HTMLImageElement>
-    const gl = this.gl;
-    this.textures.clear();
-
-    for (const [block, img] of textureMap.entries()) {
-      const tex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        img
-      );
-
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-
-      gl.bindTexture(gl.TEXTURE_2D, null);
-      this.textures.set(block, tex);
-    }
+    // Draw player
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(centerX - 5, centerY - 5, 10, 10);
   }
 }
