@@ -1,0 +1,47 @@
+{
+  "minecraft:air": {
+    "name": "Air",
+    "solid": false,
+    "color": "#00000000"
+  },
+  "minecraft:grass_block": {
+    "name": "Grass Block",
+    "solid": true,
+    "color": "#4CAF50"
+  },
+  "minecraft:dirt": {
+    "name": "Dirt",
+    "solid": true,
+    "color": "#795548"
+  },
+  "minecraft:stone": {
+    "name": "Stone",
+    "solid": true,
+    "color": "#888888"
+  },
+  "minecraft:sand": {
+    "name": "Sand",
+    "solid": true,
+    "color": "#E0C074"
+  },
+  "minecraft:planks": {
+    "name": "Wooden Planks",
+    "solid": true,
+    "color": "#A0522D"
+  },
+  "minecraft:glass": {
+    "name": "Glass",
+    "solid": false,
+    "color": "#A0D8EF88"
+  },
+  "minecraft:leaves": {
+    "name": "Leaves",
+    "solid": false,
+    "color": "#228B22CC"
+  },
+  "minecraft:water": {
+    "name": "Water",
+    "solid": false,
+    "color": "#3F76E4AA"
+  }
+}
