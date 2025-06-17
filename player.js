@@ -1,126 +1,118 @@
 // player.js
 
+const GRAVITY = -0.01;
+const JUMP_VELOCITY = 0.18;
+const MOVE_SPEED = 0.05;
+
 export class Player {
-  constructor(world, spawn = { x: 32, y: 12, z: 32 }) {
+  constructor(world, camera) {
     this.world = world;
+    this.camera = camera;
 
-    // Position & velocity
-    this.pos = { x: spawn.x, y: spawn.y, z: spawn.z };
-    this.vel = { x: 0, y: 0, z: 0 };
+    this.position = { x: 8, y: 2, z: 8 };
+    this.velocity = { x: 0, y: 0, z: 0 };
 
-    // Player size (AABB half extents)
-    this.width = 0.3;
-    this.height = 1.8;
-
-    // Movement parameters
-    this.speed = 5.0; // blocks per second
-    this.jumpVelocity = 7.0;
-    this.gravity = -20.0;
-
-    // Movement input flags
     this.input = {
       forward: false,
-      backward: false,
+      back: false,
       left: false,
       right: false,
-      jump: false,
+      jump: false
     };
 
     this.onGround = false;
+
+    this.setupControls();
   }
 
-  update(dt) {
-    // Apply gravity
-    this.vel.y += this.gravity * dt;
+  setupControls() {
+    document.addEventListener('keydown', e => {
+      if (e.code === 'KeyW') this.input.forward = true;
+      if (e.code === 'KeyS') this.input.back = true;
+      if (e.code === 'KeyA') this.input.left = true;
+      if (e.code === 'KeyD') this.input.right = true;
+      if (e.code === 'Space') this.input.jump = true;
+    });
 
-    // Apply horizontal movement based on input
-    const dir = { x: 0, z: 0 };
-    if (this.input.forward) dir.z -= 1;
-    if (this.input.backward) dir.z += 1;
-    if (this.input.left) dir.x -= 1;
-    if (this.input.right) dir.x += 1;
+    document.addEventListener('keyup', e => {
+      if (e.code === 'KeyW') this.input.forward = false;
+      if (e.code === 'KeyS') this.input.back = false;
+      if (e.code === 'KeyA') this.input.left = false;
+      if (e.code === 'KeyD') this.input.right = false;
+      if (e.code === 'Space') this.input.jump = false;
+    });
+  }
 
-    // Normalize direction vector
-    const len = Math.hypot(dir.x, dir.z);
-    if (len > 0) {
-      dir.x /= len;
-      dir.z /= len;
+  update() {
+    const forward = this.camera.getForwardVector();
+    const right = this.camera.getRightVector();
+
+    let moveX = 0, moveZ = 0;
+
+    if (this.input.forward) {
+      moveX += forward.x;
+      moveZ += forward.z;
+    }
+    if (this.input.back) {
+      moveX -= forward.x;
+      moveZ -= forward.z;
+    }
+    if (this.input.left) {
+      moveX -= right.x;
+      moveZ -= right.z;
+    }
+    if (this.input.right) {
+      moveX += right.x;
+      moveZ += right.z;
     }
 
-    // Move velocity horizontally (simple)
-    this.vel.x = dir.x * this.speed;
-    this.vel.z = dir.z * this.speed;
-
-    // Jump if on ground
-    if (this.input.jump && this.onGround) {
-      this.vel.y = this.jumpVelocity;
-      this.onGround = false;
+    const mag = Math.hypot(moveX, moveZ);
+    if (mag > 0) {
+      moveX = (moveX / mag) * MOVE_SPEED;
+      moveZ = (moveZ / mag) * MOVE_SPEED;
     }
 
-    // Calculate proposed new position
-    const newPos = {
-      x: this.pos.x + this.vel.x * dt,
-      y: this.pos.y + this.vel.y * dt,
-      z: this.pos.z + this.vel.z * dt,
+    this.velocity.x = moveX;
+    this.velocity.z = moveZ;
+
+    this.velocity.y += GRAVITY;
+
+    // Jumping
+    if (this.onGround && this.input.jump) {
+      this.velocity.y = JUMP_VELOCITY;
+    }
+
+    this.moveAndCollide();
+  }
+
+  moveAndCollide() {
+    const next = {
+      x: this.position.x + this.velocity.x,
+      y: this.position.y + this.velocity.y,
+      z: this.position.z + this.velocity.z
     };
 
-    // Collide and resolve
-    this.pos = this.collide(this.pos, newPos);
+    this.onGround = false;
 
-    // Check if on ground (simple: if standing on a solid block)
-    this.onGround = this.isOnGround();
-  }
-
-  collide(oldPos, newPos) {
-    // Simple AABB collision with world blocks, axis by axis
-    let pos = { ...oldPos };
-
-    // Check X
-    pos.x = newPos.x;
-    if (this.collides(pos)) pos.x = oldPos.x;
-
-    // Check Y
-    pos.y = newPos.y;
-    if (this.collides(pos)) {
-      if (this.vel.y < 0) this.onGround = true; // landed on ground
-      this.vel.y = 0;
-      pos.y = oldPos.y;
+    // Simple AABB collision, 1 block tall
+    if (!this.world.isSolid(next.x, this.position.y, this.position.z)) {
+      this.position.x = next.x;
     }
 
-    // Check Z
-    pos.z = newPos.z;
-    if (this.collides(pos)) pos.z = oldPos.z;
-
-    return pos;
-  }
-
-  collides(pos) {
-    // Check all blocks overlapping player's bounding box
-    const minX = Math.floor(pos.x - this.width);
-    const maxX = Math.floor(pos.x + this.width);
-    const minY = Math.floor(pos.y);
-    const maxY = Math.floor(pos.y + this.height);
-    const minZ = Math.floor(pos.z - this.width);
-    const maxZ = Math.floor(pos.z + this.width);
-
-    for (let x = minX; x <= maxX; x++) {
-      for (let y = minY; y <= maxY; y++) {
-        for (let z = minZ; z <= maxZ; z++) {
-          const block = this.world.getBlock(x, y, z);
-          if (block !== 'air') return true;
-        }
-      }
+    if (!this.world.isSolid(this.position.x, this.position.y, next.z)) {
+      this.position.z = next.z;
     }
-    return false;
+
+    if (!this.world.isSolid(this.position.x, next.y, this.position.z)) {
+      this.position.y = next.y;
+    } else {
+      // Hit floor or ceiling
+      if (this.velocity.y < 0) this.onGround = true;
+      this.velocity.y = 0;
+    }
   }
 
-  isOnGround() {
-    const feetPos = { x: this.pos.x, y: this.pos.y - 0.1, z: this.pos.z };
-    return this.collides(feetPos);
-  }
-
-  // Input handlers
-  setInput(input) {
-    this.input = { ...this.input, ...input };
+  getPosition() {
+    return this.position;
   }
 }
